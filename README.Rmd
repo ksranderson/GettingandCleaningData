@@ -1,0 +1,270 @@
+---
+title: "README"
+author: "Reuben Anderson"
+date: "2023-12-11"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting and Cleaning Data - Course Project
+## submitted by Reuben Anderson
+
+This is merely a description of the script run_analysis.R and is not intended to be knit.
+
+Initially change the timeout option so slow internet speed is accommodated so the script can run until completion.  Also, clear R environment variables to start fresh
+```{r}
+options(timeout = 100)
+
+rm(list = ls())
+
+```
+
+Get the data from the internet using whatever is the current directory as destination directory for files and unzip files.  For the file string paste() and gsub() used to put together the string and then substitute spaces for empty space so no spaces left.
+```{r}
+wd <- getwd()
+datawd <- paste(getwd(), "/SamsungData.zip")
+datawd <- gsub(" ", "", datawd)
+url <- c('https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip')
+destfile <- datawd
+download.file(url, destfile) #throws error on 'destfile' 'No such file or directory', try the non One Drive location using setwd()
+
+zipF<- datawd
+outDir<- wd
+unzip(zipF,exdir=outDir)
+```
+
+load library dplyr
+
+load all the data into variables which needs the working directory reset to access variables:
+Variable# = test inertial signal variables
+CoreTestVariable# = test core variables(subject, x, y text files)
+TrainVariable# = train inertial signal variables
+CoreTrainVariable# = train core variables(subject, x, y text files)
+FeatureLabelVariable# = top level, 2 text files for features and activity labels
+
+```{r}
+library(dplyr)
+
+setwd("./UCI HAR Dataset/test/Inertial Signals/")
+
+Files <- list.files( pattern = ".txt") #list of text files
+for (i in 1:length(Files)) {
+  temp <- paste('./',Files[i], sep = "") #file location
+  assign(paste0("Variable", i), read.table(temp, sep = "" , header = F, na.strings ="", stringsAsFactors= F))
+} #for loop puts all 9 variable text files into dataframe variables with name 'Variable#'
+
+#Set directory to test/ to get 'subject', 'x', and 'y' files getting all these text files into dataframe variable
+setwd("../../test/")	#set to text files
+CoreTestFiles <- list.files( pattern = ".txt") #list of text files
+for (i in 1:length(CoreTestFiles)) {
+  temp <- paste('./',CoreTestFiles[i], sep = "") #file location
+  assign(paste0("CoreTestVariable", i), read.table(temp, sep = "" , header = F, na.strings ="", stringsAsFactors= F))
+} #for loop puts all 9 variable text files into dataframe variables with name 'Variable#'
+
+#Set directory to test/inertialsignals files and get all text files into dataframe variable
+setwd("../train/Inertial Signals/")	#set to text files
+TrainFiles <- list.files( pattern = ".txt") #list of text files
+for (i in 1:length(TrainFiles)) {
+  temp <- paste('./',TrainFiles[i], sep = "") #file location
+  assign(paste0("TrainVariable", i), read.table(temp, sep = "" , header = F, na.strings ="", stringsAsFactors= F))
+} #for loop puts all 9 variable text files into dataframe variables with name 'Variable#'
+
+#Set directory to train/ to get 'subject', 'x', and 'y' files getting all these text files into dataframe variable
+setwd("../../train/")	#set to text files
+CoreTrainFiles <- list.files( pattern = ".txt") #list of text files
+for (i in 1:length(CoreTrainFiles)) {
+  temp <- paste('./',CoreTrainFiles[i], sep = "") #file location
+  assign(paste0("CoreTrainVariable", i), read.table(temp, sep = "" , header = F, na.strings ="", stringsAsFactors= F))
+} #for loop puts all 9 variable text files into dataframe variables with name 'Variable#'
+
+#Set directory to UCI HAR Dataset to get 'features.txt' and 'activity_labels.txt' files into dataframe variable
+setwd("../../UCI HAR Dataset/")	#set to text files
+FeatureLabelFiles <- c("features.txt","activity_labels.txt") #list of text files
+for (i in 1:length(FeatureLabelFiles)) {
+  temp <- paste('./',FeatureLabelFiles[i], sep = "") #file location
+  assign(paste0("FeatureLabelVariable", i), read.table(temp, sep = "" , header = F, na.strings ="", stringsAsFactors= F))
+} #for loop puts all 9 variable text files into dataframe variables with name 'Variable#'
+
+```
+
+Append CoreTestVariable2 with CoreTestVariable1 & 3 to add 'Subject' and 'Activity' columns so all columns are together in 1 data frame for both Test and Train data.  Use cbind() to add columns and then append() names for these two columns into colnames() of the two data frames for Test and Train data.
+
+```{r}
+CoreTestVariable2 <- cbind(Activity = CoreTestVariable3$V1, CoreTestVariable2)
+CoreTestVariable2 <- cbind(Subject = CoreTestVariable1$V1, CoreTestVariable2)
+#import list of variable names in 'FeatureLabelVariable1' and put into colnames of 'CoreTestVariable2'
+#also add 'Subject' and 'Activity column names added above to have all test folder files in 1 dataframe
+Names <- character()
+Names <- append(Names, "Subject")
+Names <- append(Names, "Activity")
+Names <- append(Names, as.list(FeatureLabelVariable1$V2))
+colnames(CoreTestVariable2) <- Names
+#Repeat above code for colnames only for 'Train' files so we have all train folder files in 1 dataframe
+CoreTrainVariable2 <- cbind(Activity = CoreTrainVariable3$V1, CoreTrainVariable2)
+CoreTrainVariable2 <- cbind(Subject = CoreTrainVariable1$V1, CoreTrainVariable2)
+#Use already created 'Names' variable with all column names needed
+colnames(CoreTrainVariable2) <- Names
+
+```
+
+Make column names for all intertial variable columns for the 9 data frames with for loops.  Bind columns for all inertial data frames along with main data frame CoreTrainVariable2, so 10 data frames combined into one data frame for Test data. 
+
+```{r}
+#add column names to all 9 dataframes in 'test', length of for() loop 128
+#create column names list and change names for each of 9 test files
+#1
+readings1 <- character() #empty vector
+for (i in 1:length(colnames(Variable1))) {
+  readings1 <- append(readings1, paste('test_body_acc_x_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(Variable1) <- readings1 #insert 'readings' into Variable2 column names to create better names
+#2
+readings2 <- character() #empty vector
+for (i in 1:length(colnames(Variable2))) {
+  readings2 <- append(readings2, paste('test_body_acc_y_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(Variable2) <- readings2 #insert 'readings' into Variable2 column names to create better names
+#3
+readings3 <- character() #empty vector
+for (i in 1:length(colnames(Variable3))) {
+  readings3 <- append(readings3, paste('test_body_acc_z_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(Variable3) <- readings3 #insert 'readings' into Variable2 column names to create better names
+#4
+readings4 <- character() #empty vector
+for (i in 1:length(colnames(Variable4))) {
+  readings4 <- append(readings4, paste('test_body_gyro_x_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(Variable4) <- readings4 #insert 'readings' into Variable2 column names to create better names
+#5
+readings5 <- character() #empty vector
+for (i in 1:length(colnames(Variable5))) {
+  readings5 <- append(readings5, paste('test_body_gyro_y_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(Variable5) <- readings5 #insert 'readings' into Variable2 column names to create better names
+#6
+readings6 <- character() #empty vector
+for (i in 1:length(colnames(Variable6))) {
+  readings6 <- append(readings6, paste('test_body_gyro_z_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(Variable6) <- readings6 #insert 'readings' into Variable2 column names to create better names
+#7
+readings7 <- character() #empty vector
+for (i in 1:length(colnames(Variable7))) {
+  readings7 <- append(readings7, paste('test_tot_acc_x_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(Variable7) <- readings7 #insert 'readings' into Variable2 column names to create better names
+#8
+readings8 <- character() #empty vector
+for (i in 1:length(colnames(Variable8))) {
+  readings8 <- append(readings8, paste('test_tot_acc_y_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(Variable8) <- readings8 #insert 'readings' into Variable2 column names to create better names
+#9
+readings9 <- character() #empty vector
+for (i in 1:length(colnames(Variable9))) {
+  readings9 <- append(readings9, paste('test_tot_acc_z_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(Variable9) <- readings9 #insert 'readings' into Variable2 column names to create better names
+
+#Bind 'test' 'Core' dataframe and 9 Inertial dataframes together to get all variables for 'test' in same dataframe
+Test_df <- bind_cols(CoreTestVariable2, Variable1, Variable2, Variable3, Variable4, Variable5, Variable6, Variable7, Variable8, Variable9)
+
+```
+
+
+Repeat the procedure above with the Train data frames to get all Train data into one data frame.  Now there are just two data frames for Test and Train data.
+
+```{r}
+#1
+readings1 <- character() #empty vector
+for (i in 1:length(colnames(TrainVariable1))) {
+  readings1 <- append(readings1, paste('train_body_acc_x_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(TrainVariable1) <- readings1 #insert 'readings' into TrainVariable2 column names to create better names
+#2
+readings2 <- character() #empty vector
+for (i in 1:length(colnames(TrainVariable2))) {
+  readings2 <- append(readings2, paste('train_body_acc_y_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(TrainVariable2) <- readings2 #insert 'readings' into TrainVariable2 column names to create better names
+#3
+readings3 <- character() #empty vector
+for (i in 1:length(colnames(TrainVariable3))) {
+  readings3 <- append(readings3, paste('train_body_acc_z_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(TrainVariable3) <- readings3 #insert 'readings' into TrainVariable2 column names to create better names
+#4
+readings4 <- character() #empty vector
+for (i in 1:length(colnames(TrainVariable4))) {
+  readings4 <- append(readings4, paste('train_body_gyro_x_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(TrainVariable4) <- readings4 #insert 'readings' into TrainVariable2 column names to create better names
+#5
+readings5 <- character() #empty vector
+for (i in 1:length(colnames(TrainVariable5))) {
+  readings5 <- append(readings5, paste('train_body_gyro_y_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(TrainVariable5) <- readings5 #insert 'readings' into TrainVariable2 column names to create better names
+#6
+readings6 <- character() #empty vector
+for (i in 1:length(colnames(TrainVariable6))) {
+  readings6 <- append(readings6, paste('train_body_gyro_z_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(TrainVariable6) <- readings6 #insert 'readings' into TrainVariable2 column names to create better names
+#7
+readings7 <- character() #empty vector
+for (i in 1:length(colnames(TrainVariable7))) {
+  readings7 <- append(readings7, paste('train_tot_acc_x_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(TrainVariable7) <- readings7 #insert 'readings' into TrainVariable2 column names to create better names
+#8
+readings8 <- character() #empty vector
+for (i in 1:length(colnames(TrainVariable8))) {
+  readings8 <- append(readings8, paste('train_tot_acc_y_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(TrainVariable8) <- readings8 #insert 'readings' into TrainVariable2 column names to create better names
+#9
+readings9 <- character() #empty vector
+for (i in 1:length(colnames(TrainVariable9))) {
+  readings9 <- append(readings9, paste('train_tot_acc_z_reading', i, sep = "")) #colnames for readings every 2.56 seconds for inertial signals
+}
+colnames(TrainVariable9) <- readings9 #insert 'readings' into TrainVariable2 column names to create better names
+
+Train_df <- bind_cols(CoreTrainVariable2, TrainVariable1, TrainVariable2, TrainVariable3, TrainVariable4, TrainVariable5, TrainVariable6, TrainVariable7, TrainVariable8, TrainVariable9)
+
+```
+
+Combine Test and Train data frame with bind_rows() which will create NA values when there is no data for a certain column.
+
+Grab only column names in the 1 data frame that have 'mean' or 'std' using grep() and put into a list.  Pull only names into a character vector 'Scol'.
+
+Grab only data from these columns into a new data frame Samsunglite using vector and adding 'Subject' and 'Activity'
+
+Change 'Activity' column numbers with names using 'FeatureLabelVariable2' to translate or 'decode' number to name of Activity
+
+Create a tidy dataset by having 1 record(row) for each Subject and Activity using group_by(), use summarize_all() to get all columns' mean values and finally push the data frame to viewing area so it can be viewed in Source pane of RStudio.
+
+```{r}
+SamsungGalaxyS <- bind_rows(Test_df, Train_df)
+
+FLVms <- FeatureLabelVariable1[grep("mean|std",FeatureLabelVariable1$V2),]
+
+#column names to pull put into a character vector
+Scol <- FLVms$V2 
+
+#pulled columns into new data frame retaining Subject & Activity columns as well
+Samsunglite <- SamsungGalaxyS[,c("Subject", "Activity", Scol)] 
+
+Samsunglite$Activity <- FeatureLabelVariable2$V2[match(Samsunglite$Activity, FeatureLabelVariable2$V1)]
+
+TidySamsung <- Samsunglite %>% group_by(Subject, Activity) %>% summarise_all("mean")
+View(TidySamsung)
+
+```
+
